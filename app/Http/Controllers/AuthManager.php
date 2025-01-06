@@ -29,6 +29,7 @@ class AuthManager extends Controller {
             'user_email' => 'required|email',
             'password' => 'required'
         ]);
+        
 
         // Check if the email is in the admin table first
         $admin = Admin::where('aduser_email', $request->user_email)->first();
@@ -66,7 +67,16 @@ class AuthManager extends Controller {
         }
         return view(view:'registration');
     }
-
+    public function showDashboard()
+    {
+        if (Auth::check()) {
+            // The user is logged in, continue with the dashboard
+            return view('dashboard');
+        } else {
+            // If not logged in, redirect to login page
+            return redirect()->route('login');
+        }
+    }
    
     public function registrationPost(Request $request) {
         // Set the default timezone to Asia/Manila

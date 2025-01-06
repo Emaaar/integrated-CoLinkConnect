@@ -45,7 +45,11 @@ class DashboardController extends Controller
         // Return the dashboard view with updated donations count
         return view('dashboard', compact('totalDonations', 'totalPartners', ));
     }
-
+    public function dashboard()
+    {
+        $users = User::all(); // Retrieve all users from the database
+        return view('dashboard', ['users' => $users]); // Pass $users to the view
+    }
 
     // public function updateInterventions()
     // {
@@ -65,3 +69,4 @@ class DashboardController extends Controller
 }
 
 }
+

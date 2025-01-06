@@ -31,6 +31,9 @@ use App\Models\Video_Teaser;
 
 use App\Models\People_Involve;
 
+
+use App\Models\Contract_Progress;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -48,8 +51,9 @@ class ContractingController extends Controller
     {
         // Ensure only authenticated users can access the page
         if (Auth::check()) {
-            return view('contracting'); // Authenticated users should see the contracting page
+            // return view('contracting2'); // Authenticated users should see the contracting page
             // return view('contracting3'); // Authenticated users should see the contracting page
+            return view('contracting'); // Authenticated users should see the contracting page
         }
         return redirect(route('login'));
     }
@@ -66,6 +70,20 @@ class ContractingController extends Controller
         }
     }
 
+    // public function updateProgress(Request $request, $contractNum)
+    // {
+    //     $progress = Contract_Progress::where('contract_num', $contractNum)->firstOrFail();
+
+    //     $progress->update([
+    //         'is_processing' => $request->input('is_processing', false),
+    //         'is_pending' => $request->input('is_pending', false),
+    //         'is_done' => $request->input('is_done', false),
+    //     ]);
+
+    //     return response()->json(['message' => 'Progress updated successfully']);
+    // }
+
+
 
 
     //MARK: TO DO
@@ -75,23 +93,36 @@ class ContractingController extends Controller
         date_default_timezone_set('Asia/Manila');
 
         $validator = Validator::make($request->all(), [
-// <<<<<<< 8-fix-the-contracting
 
-
-// =======
-// >>>>>>> master
             // MARK: I. Partners Information
             'name_of_the_org' => 'required|string',
             'nature_of_the_org' => 'required|string',
             'head_org_name' => 'required|string',
             'head_org_designation' => 'required|string',
-            'head_org_contact' => 'required|regex:/^[0-9\-\+\s]{10,20}$/',
+
+            'head_org_contact' => 'required|regex:/^[9]\d{9}$/',  //Validates 10-digit number starting with 9
+
             'coor_name' => 'required|string',
             'coor_designation' => 'required|string',
-            'coor_contact' => 'required|regex:/^[0-9\-\+\s]{10,20}$/',
+
+            'coor_contact' => 'required|regex:/^[9]\d{9}$/',
+
 
             // MARK: II. Participants
-            'age' => 'required|numeric|min:0',
+            // 'age' => 'required|numeric|min:0',
+            'min_age' => 'required|numeric|min:13|max:50',
+                function ($attribute, $value, $fail) {
+                    if ($value < 13) {
+                        $fail('The minimum age must be at least 13 years old.');
+                    }
+                },
+            'max_age'  => 'required|numeric|min:13|max:50',
+                function ($attribute, $value, $fail) {
+                    if ($value > 50) {
+                        $fail('The maximum age cannot exceed 50 years old.');
+                    }
+                },
+
             'gender' => 'required|string',
             'education_status' => 'required|string',
             'leadership_exp' => 'required|string',
@@ -133,7 +164,7 @@ class ContractingController extends Controller
             'intervention_end_date' => 'required|date|after_or_equal:intervention_start_date',
 
             'intervention_days' => 'required|numeric|min:1',
-            'intervention_duration' => 'required|numeric|min:1',
+            'intervention_duration' => 'required|numeric|min:1|max:8',
             'intervention_objectives' => 'required|string',
             'intervention_output' => 'required|string',
 
@@ -279,6 +310,18 @@ class ContractingController extends Controller
                              ->withInput();
         }
 
+        // Check for 1 week before the day
+        $checkStartDate = $this->checkStartDate(
+            $request->intervention_start_date
+        );
+
+        if ($checkStartDate) {
+            return redirect()->back()
+            ->withInput()
+            ->withErrors(['conflict2' => $checkStartDate])
+            ->with('scrollTo', 'intervention_start_date');
+        }
+
         // Check for conflicts
         $conflictMessage = $this->checkConflicts(
             $request->intervention_start_date,
@@ -290,12 +333,13 @@ class ContractingController extends Controller
 
         if ($conflictMessage) {
             return redirect()->back()
-                            ->withInput()
-                            ->withErrors(['conflict' => $conflictMessage]);
-}
+            ->withInput()
+            ->withErrors(['conflict1' => $conflictMessage])
+            ->with('scrollTo', 'intervention_start_date');
+        }
 
-        DB::beginTransaction();
         $daterecorded = Carbon::now();
+        DB::beginTransaction();
 
         try{
 
@@ -310,10 +354,14 @@ class ContractingController extends Controller
                 'category' => $request->nature_of_the_org,
                 'orghd_name' => $request->head_org_name,
                 'orghead_designation' => $request->head_org_designation,
-                'orghead_contact' => $request->head_org_contact,
+
+                'orghead_contact' => '+63' . $request->head_org_contact,
+
                 'coor_name' => $request->coor_name,
                 'coor_desig' => $request->coor_designation,
-                'coor_contact' => $request->coor_contact,
+
+                'coor_contact' => '+63' . $request->coor_contact,
+
                 'client_id' => $client_id,
             ]);
             if (!$partner_information) {
@@ -321,7 +369,10 @@ class ContractingController extends Controller
             }
 
             $participants = Participants::create([
-                'age' => $request->age,
+
+                'age' => $request->min_age . ' - ' . $request->max_age,
+
+
                 'gender' => $request->gender,
                 'education_status' => $request->education_status,
                 'leadership_exp' => $request->leadership_exp,
@@ -597,12 +648,26 @@ class ContractingController extends Controller
                 'contract_num' => $partner_information->contract_num,
             ]);
 
-            if (!$partner_information) {
-                throw new \Exception('Failed to create partner information.');
+            if (!$people_involve) {
+                return redirect()->back()->with('error', 'Failed to create people involve.')->withInput();
+            }
+
+            // Create a new Contract_Progress record
+            $contract_progress = Contract_Progress::create([
+                'contract_num' => $partner_information->contract_num,
+                'is_processing' => true,
+                'is_pending' => false,
+                'is_done' => false,
+            ]);
+
+            if (!$contract_progress) {
+                throw new \Exception('Failed to create contract progress.');
             }
 
             DB::commit();
-            return redirect()->route('admin-dash')->with('success', 'Contract successfully created.');
+            return redirect()->route('contracting')->with('success', 'Contract successfully created for ' . $request->name_of_the_org);
+
+            // return response()->json(['success' => true, 'message' => 'Contract successfully created.']);
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -614,7 +679,6 @@ class ContractingController extends Controller
 
     }
 
-// <<<<<<< 8-fix-the-contracting
     private function checkConflicts($startDate, $endDate, $leadFaci, $secondFaci, $thirdFaci)
     {
         // Get all interventions in the date range
@@ -641,11 +705,33 @@ class ContractingController extends Controller
             $hasConflict = array_intersect($existingFacilitators, $newFacilitators);
 
             if (!empty($hasConflict)) {
-                return "One or more selected facilitators are already assigned on the chosen dates. Please select different facilitators or change the date range.";
+                return "One or more selected facilitators are already assigned on the chosen dates. Please change the date range or select different facilitators.";
             }
         }
 
         return null; // No conflicts found
+    }
+
+    private function checkStartDate($startDate)
+    {
+        // Set the timezone to Asia/Manila
+        $timezone = new \DateTimeZone('Asia/Manila');
+
+        // Get today's date in Manila timezone
+        $today = Carbon::now($timezone)->startOfDay();
+
+        // Parse the start date and set it to Manila timezone
+        $startDate = Carbon::parse($startDate, $timezone)->startOfDay();
+
+        // Calculate the difference in days
+        $daysDifference = $today->diffInDays($startDate, false);
+
+        // Check if the start date is at least 7 days in the future
+        if ($daysDifference < 7) {
+            return "We need at least 7 days to prepare. Please change the start date in the Proposed Intervention.";
+        }
+
+        return null;
     }
 
     // public function records()
@@ -662,12 +748,13 @@ class ContractingController extends Controller
     // {
     //     // Ensure only authenticated users can access the page
     //     if (Auth::check()) {
-    //         return view('messages'); // Authenticated users should see the contracting page
+    //         return view('records'); // Authenticated users should see the contracting page
     //     }
 
     //     // Optional: Redirect unauthenticated users to login or another page
     //     return redirect(route('login'));
     // }
+
     public function blog()
     {
         // Ensure only authenticated users can access the page

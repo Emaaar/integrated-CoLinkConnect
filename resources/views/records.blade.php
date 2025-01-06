@@ -257,7 +257,7 @@
         <!-- Main Content -->
         <div class="flex-grow p-6 overflow-y-auto">
         <div class="content">
-        <h2><b>Contract Records</b></h2>
+        <h2>Manage Records</h2>
         <div class="records-info">Showing {{ count($records) }} records</div>
 
         <div class="controls">
@@ -265,8 +265,8 @@
                 <label for="category-filter" class="filter-label">Filter by progress:</label>
                 <select id="category-filter" class="filter-dropdown">
                     <option value="all" selected>All</option>
-                    <option value="pending">Pending</option>
                     <option value="processing">Processing</option>
+                    <option value="pending">Pending</option>
                     <option value="done">Done</option>
                 </select>
             </div>
@@ -328,6 +328,9 @@
                     </button> --}}
                     {{-- <button class="action-button">Edit</button> --}}
                     {{-- MARK: diri e butang status sa contract --}}
+                    @if($record->is_done)
+                        <span class="record-category">Done</span>
+                    @endif
                 </div>
             </div>
             @endforeach
